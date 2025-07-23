@@ -1,0 +1,318 @@
+<?php
+session_start();
+$conn = new mysqli("localhost", "root", "root", "outstockdb");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+$error = '';
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_color'])) {
+    $name = $conn->real_escape_string($_POST['name']);
+    if ($conn->query("INSERT INTO colors (name) VALUES ('$name')")) {
+        $_SESSION['toast_message'] = 'Color added successfully';
+    } else {
+        $error = 'Failed to add color';
+    }
+    header("Location: admin_colors.php");
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_color'])) {
+    $id = (int)$_POST['id'];
+    $name = $conn->real_escape_string($_POST['name']);
+    
+    $sql = "UPDATE colors SET name = '$name' WHERE id = $id";
+    if ($conn->query($sql)) {
+        $_SESSION['toast_message'] = 'Color updated successfully';
+    } else {
+        $error = 'Failed to update color';
+    }
+    
+    header("Location: admin_colors.php");
+    exit;
+}
+
+if (isset($_GET['delete_id'])) {
+    $id = (int)$_GET['delete_id'];
+
+    // Check kerna hai k color kisi product k sath associated hai ya nhin
+    $check_query = $conn->query("SELECT COUNT(*) as count FROM products WHERE color_id = $id");
+    $row = $check_query->fetch_assoc();
+    if ($row['count'] > 0) {
+        $_SESSION['toast_message'] = 'Cannot delete color because it is associated with ' . $row['count'] . ' product(s)';
+    } else {
+        if ($conn->query("DELETE FROM colors WHERE id = $id")) {
+            $_SESSION['toast_message'] = 'Color deleted successfully';
+        } else {
+            $_SESSION['toast_message'] = 'Failed to delete color';
+        }
+    }
+    header("Location: admin_colors.php");
+    exit;
+}
+
+$result = $conn->query("SELECT * FROM colors");
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Colors - My Store</title>
+    <link rel="shortcut icon" href="https://cdn.jsdelivr.net/gh/zuramai/mazer@docs/demo/assets/compiled/svg/favicon.svg" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/zuramai/mazer@docs/demo/assets/compiled/css/app.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/zuramai/mazer@docs/demo/assets/compiled/css/app-dark.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/zuramai/mazer@docs/demo/assets/compiled/css/iconly.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body{background-color: #f2f7ff;}
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1055;
+        }
+        /* Hide navbar by default on medium and larger screens */
+        #main > header {
+            display: none;
+        }
+        @media (max-width: 767.98px) {
+            #main > header {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <?php include 'sidebar.php'; ?>
+
+        <div id="main">
+            <!-- Navbar visible only on small screens -->
+            <header class="mb-3">
+                <nav class="navbar navbar-expand navbar-light navbar-top">
+                    <div class="container-fluid">
+                        <a href="#" class="burger-btn d-block">
+                            <i class="bi bi-justify fs-3"></i>
+                        </a>
+                    </div>
+                </nav>
+            </header>
+
+            <div class="page-heading">
+                <div class="page-title">
+                    <div class="row">
+                        <div class="col-12 col-md-6 order-md-1 order-last">
+                            <h3><i class="bi bi-palette"></i> Manage Colors</h3>
+                            <p class="text-subtitle text-muted">Add, edit, or remove colors</p>
+                        </div>
+                        <div class="col-12 col-md-6 order-md-2 order-first">
+                            <nav aria-label="breadcrumb" class="breadcrumb-header float-start float-lg-end">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item"><a href="admin_dashboard.php">Dashboard</a></li>
+                                    <li class="breadcrumb-item active" aria-current="page">Colors</li>
+                                </ol>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="section">
+                    <div style="box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); border: none;" class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Color Management</h4>
+                        </div>
+                        <div class="card-body">
+                            <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addColorModal">
+                                <i class="bi bi-plus-circle"></i> Add Color
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Add Color Modal -->
+                    <div class="modal fade" id="addColorModal" tabindex="-1" aria-labelledby="addColorModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="addColorModalLabel">Add New Color</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <?php if ($error): ?>
+                                        <div class="alert alert-danger"><?php echo $error; ?></div>
+                                    <?php endif; ?>
+                                    <form method="POST" class="row g-3">
+                                        <div class="col-12">
+                                            <label for="name" class="form-label">Color Name</label>
+                                            <input type="text" name="name" id="name" class="form-control" placeholder="Color Name" required>
+                                        </div>
+                                        <div class="col-12">
+                                            <button type="submit" name="add_color" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Color</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edit Color Modal -->
+                    <div class="modal fade" id="editColorModal" tabindex="-1" aria-labelledby="editColorModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="editColorModalLabel">Edit Color</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <?php if ($error): ?>
+                                        <div class="alert alert-danger"><?php echo $error; ?></div>
+                                    <?php endif; ?>
+                                    <form method="POST" class="row g-3">
+                                        <input type="hidden" name="id" id="edit_color_id">
+                                        <div class="col-12">
+                                            <label for="edit_name" class="form-label">Color Name</label>
+                                            <input type="text" name="name" id="edit_name" class="form-control" placeholder="Color Name" required>
+                                        </div>
+                                        <div class="col-12">
+                                            <button type="submit" name="edit_color" class="btn btn-primary"><i class="bi bi-save"></i> Save Changes</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); border: none;" class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Color List</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Name</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php while ($row = $result->fetch_assoc()): ?>
+                                            <tr>
+                                                <td><?php echo $row['id']; ?></td>
+                                                <td><?php echo $row['name']; ?></td>
+                                                <td>
+                                                    <button class="btn btn-primary btn-sm edit-color-btn" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#editColorModal" 
+                                                            data-color-id="<?php echo $row['id']; ?>" 
+                                                            data-color-name="<?php echo htmlspecialchars($row['name']); ?>">
+                                                        <i class="bi bi-pencil"></i> Edit
+                                                    </button>
+                                                    <button class="btn btn-danger btn-sm delete-color-btn" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#deleteColorModal" 
+                                                            data-color-id="<?php echo $row['id']; ?>" 
+                                                            data-color-name="<?php echo htmlspecialchars($row['name']); ?>">
+                                                        <i class="bi bi-trash"></i> Delete
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Delete Confirmation Modal -->
+            <div class="modal fade" id="deleteColorModal" tabindex="-1" aria-labelledby="deleteColorModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="deleteColorModalLabel">Confirm Deletion</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            Are you sure you want to delete the color "<span id="color-name"></span>"?
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <a href="#" id="confirm-delete-btn" class="btn btn-danger">Delete</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toast Notification -->
+            <?php if (isset($_SESSION['toast_message'])): ?>
+                <div class="toast-container">
+                    <div class="toast align-items-center text-bg-<?php echo strpos($_SESSION['toast_message'], 'Failed') === false ? 'success' : 'danger'; ?> border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                <?php echo $_SESSION['toast_message']; ?>
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                </div>
+                <?php unset($_SESSION['toast_message']); ?>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/gh/zuramai/mazer@docs/demo/assets/static/js/components/dark.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/zuramai/mazer@docs/demo/assets/extensions/perfect-scrollbar/perfect-scrollbar.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/zuramai/mazer@docs/demo/assets/compiled/js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/zuramai/mazer@docs/demo/assets/static/js/initTheme.js"></script>
+    <script>
+        // Initialize and show toast if present
+        document.addEventListener('DOMContentLoaded', function () {
+            var toastEl = document.querySelector('.toast');
+            if (toastEl) {
+                var toast = new bootstrap.Toast(toastEl, {
+                    autohide: true,
+                    delay: 3000
+                });
+                toast.show();
+            }
+
+            // Handle delete button click to populate modal
+            const deleteButtons = document.querySelectorAll('.delete-color-btn');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const colorId = this.getAttribute('data-color-id');
+                    const colorName = this.getAttribute('data-color-name');
+                    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+                    const colorNameSpan = document.getElementById('color-name');
+
+                    // Set the color name in the modal
+                    colorNameSpan.textContent = colorName;
+                    // Set the delete URL in the confirm button
+                    confirmDeleteBtn.setAttribute('href', `?delete_id=${colorId}`);
+                });
+            });
+
+            // Handle edit button click to populate modal
+            const editButtons = document.querySelectorAll('.edit-color-btn');
+            editButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const colorId = this.getAttribute('data-color-id');
+                    const colorName = this.getAttribute('data-color-name');
+                    const editColorIdInput = document.getElementById('edit_color_id');
+                    const editNameInput = document.getElementById('edit_name');
+
+                    editColorIdInput.value = colorId;
+                    editNameInput.value = colorName;
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+<?php $conn->close(); ?>
